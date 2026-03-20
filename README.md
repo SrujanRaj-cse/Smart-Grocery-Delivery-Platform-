@@ -1,18 +1,9 @@
 # Smart Grocery Delivery Platform
 
-## 📸 Screenshots
-🛍️ Products Page
-![Products Page](./screenshots/products.png)
-
-🛒 Cart Page
-![Cart Page](./screenshots/cart.png)
-
-📦 Orders Page
-![Orders Page](./screenshots/orders.png)
 
 ## 🌐 Live Demo
-Frontend: https://your-app.netlify.app
-Backend API: https://your-api.onrender.com
+Frontend: https://smart-grocery-platform.netlify.app/
+Backend API: https://smart-grocery-backend-vq0z.onrender.com
 
 ## 💡 Why This Project Matters?
 This project simulates a real-world grocery delivery system like Blinkit/Zepto with:
