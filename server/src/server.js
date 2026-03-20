@@ -8,7 +8,9 @@ const PORT = process.env.PORT || 5000;
 
 const bootstrap = async () => {
   await connectDb();
-  await seedAll();
+  if (process.env.SEED_ON_START === "true") {
+    await seedAll();
+  }
   const server = http.createServer(app);
   initSocket(server);
   server.listen(PORT, () => {
@@ -17,6 +19,7 @@ const bootstrap = async () => {
 };
 
 bootstrap().catch((error) => {
-  console.error("Failed to start server:", error.message);
+  console.error("❌ Failed to start server:");
+  console.error(error);   // <-- ADD THIS
   process.exit(1);
 });
