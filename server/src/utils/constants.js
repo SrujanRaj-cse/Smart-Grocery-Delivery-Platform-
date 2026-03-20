@@ -1,0 +1,21 @@
+export const ROLES = {
+  ADMIN: "admin",
+  CUSTOMER: "customer",
+  DELIVERY_PARTNER: "delivery_partner",
+};
+
+export const ORDER_STATUS = {
+  CREATED: "created",
+  CONFIRMED: "confirmed",
+  ASSIGNED: "assigned",
+  PICKED: "picked",
+  DELIVERED: "delivered",
+};
+
+export const VALID_ORDER_TRANSITIONS = {
+  [ORDER_STATUS.CREATED]: [ORDER_STATUS.CONFIRMED],
+  [ORDER_STATUS.CONFIRMED]: [ORDER_STATUS.ASSIGNED],
+  [ORDER_STATUS.ASSIGNED]: [ORDER_STATUS.PICKED],
+  [ORDER_STATUS.PICKED]: [ORDER_STATUS.DELIVERED],
+  [ORDER_STATUS.DELIVERED]: [],
+};
