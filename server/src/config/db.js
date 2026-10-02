@@ -21,3 +21,15 @@ const connectDb = async () => {
 };
 
 export default connectDb;
+
+export const validateRuntimeConfig = () => {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    throw new Error("JWT_SECRET must be set to a random value of at least 32 characters");
+  }
+  if (!process.env.MONGO_URI) {
+    throw new Error("MONGO_URI is required");
+  }
+  if (process.env.NODE_ENV === "production" && !process.env.CLIENT_URL?.split(",").some((value) => value.trim())) {
+    throw new Error("CLIENT_URL must contain at least one allowed origin in production");
+  }
+};

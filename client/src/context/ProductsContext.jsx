@@ -30,6 +30,7 @@ export const ProductsProvider = ({ children }) => {
 
   useEffect(() => {
     const socket = connectSocket();
+    if (!socket) return undefined;
     const onStockUpdated = ({ productId, newStock }) => {
       setProducts((prev) =>
         prev.map((p) => (String(p._id) === String(productId) ? { ...p, stock: newStock } : p))
@@ -47,4 +48,3 @@ export const ProductsProvider = ({ children }) => {
 };
 
 export const useProducts = () => useContext(ProductsContext);
-

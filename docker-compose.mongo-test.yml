@@ -1,0 +1,51 @@
+services:
+  mongo-test:
+    image: mongo:7.0
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "127.0.0.1:27018:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand({ ping: 1 }).ok"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    tmpfs:
+      - /data/db
+
+  mongo-test-init:
+    image: mongo:7.0
+    depends_on:
+      mongo-test:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - >-
+        mongosh "mongodb://mongo-test:27017/admin" --quiet --eval
+        'try { rs.status().ok } catch (e) { rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongo-test:27017" }] }); }'
+        && sleep 2
+
+  redis-test:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  checkout-tests:
+    image: node:22-alpine
+    working_dir: /workspace/server
+    volumes:
+      - ./:/workspace
+    depends_on:
+      mongo-test-init:
+        condition: service_completed_successfully
+      redis-test:
+        condition: service_healthy
+    environment:
+      NODE_ENV: test
+      JWT_SECRET: integration-test-secret-with-at-least-32-characters
+      MONGO_TEST_URI: mongodb://mongo-test:27017/smart_grocery_test?replicaSet=rs0
+      REDIS_URL: redis://redis-test:6379
+    command: ["npm", "test", "--", "--test-reporter=spec"]

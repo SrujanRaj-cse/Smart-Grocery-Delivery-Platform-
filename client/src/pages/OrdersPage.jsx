@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import api from "../api/client";
 import OrderTimeline from "../components/OrderTimeline";
+import { formatCurrency } from "../utils/currency";
 
 const OrdersPage = () => {
   const [orders, setOrders] = useState([]);
@@ -79,7 +80,7 @@ const OrdersPage = () => {
                     <p className="mt-2 text-sm text-slate-700">{order.address}</p>
                     <div className="mt-3">
                       <p className="text-xs text-slate-500">Delivery total</p>
-                      <p className="text-2xl font-bold text-emerald-800">${Number(order.totalAmount).toFixed(2)}</p>
+                      <p className="text-2xl font-bold text-emerald-800">{formatCurrency(order.totalAmount)}</p>
                     </div>
                   </div>
                 </div>
@@ -93,7 +94,7 @@ const OrdersPage = () => {
                           <p className="font-semibold text-sm">{it.name}</p>
                           <p className="text-xs text-slate-600">Qty: {it.quantity}</p>
                         </div>
-                        <div className="text-sm font-semibold">${Number(it.price).toFixed(2)}</div>
+                        <div className="text-sm font-semibold">{formatCurrency(it.price)}</div>
                       </div>
                     ))}
                   </div>

@@ -2,12 +2,13 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import api from "../api/client";
 import { useAuth } from "./AuthContext";
-import { connectSocket } from "../services/socket";
+import { connectSocket, disconnectSocket } from "../services/socket";
 
 const CartContext = createContext(null);
 
 export const CartProvider = ({ children }) => {
   const { user } = useAuth();
+  const userId = user?._id || user?.id;
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -32,11 +33,13 @@ export const CartProvider = ({ children }) => {
   useEffect(() => {
     syncCart();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?._id]);
+  }, [userId]);
 
   // Keep cart UI in sync with server stock changes.
   useEffect(() => {
+    if (!userId) return undefined;
     const socket = connectSocket();
+    if (!socket) return undefined;
     const onStockUpdated = ({ productId, newStock }) => {
       setItems((prev) =>
         prev.map((it) =>
@@ -49,8 +52,9 @@ export const CartProvider = ({ children }) => {
     socket.on("stockUpdated", onStockUpdated);
     return () => {
       socket.off("stockUpdated", onStockUpdated);
+      disconnectSocket();
     };
-  }, []);
+  }, [userId]);
 
   const addToCart = async ({ productId, quantity }) => {
     if (!user) {

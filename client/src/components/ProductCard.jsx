@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { formatCurrency } from "../utils/currency";
 
 const stockMeta = (stock) => {
   const s = Number(stock) || 0;
@@ -56,7 +57,7 @@ const ProductCard = ({ product, onAdd, canEdit, onEdit, onDelete }) => {
         </div>
 
         <div className="mt-4 flex items-center justify-between gap-3">
-          <span className="text-sm font-bold text-emerald-700 md:text-base">${price.toFixed(2)}</span>
+          <span className="text-sm font-bold text-emerald-700 md:text-base">{formatCurrency(price)}</span>
 
           {canEdit ? (
             <div className="flex gap-2">

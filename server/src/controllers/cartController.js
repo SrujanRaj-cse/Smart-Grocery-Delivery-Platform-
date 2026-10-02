@@ -38,14 +38,14 @@ export const addToCart = async (req, res) => {
   }
 
   const populated = await Cart.findOne({ user: req.user._id }).populate("items.productId", "name price stock description imageUrl");
-  const items = populated.items.map((it) => ({ product: it.productId, quantity: it.quantity }));
+  const items = populated.items.filter((it) => it.productId).map((it) => ({ product: it.productId, quantity: it.quantity }));
 
   return res.json({ cartCount: cartCount(items), items });
 };
 
 export const getCart = async (req, res) => {
   const cart = await Cart.findOne({ user: req.user._id }).populate("items.productId", "name price stock description imageUrl");
-  const items = cart ? cart.items.map((it) => ({ product: it.productId, quantity: it.quantity })) : [];
+  const items = cart ? cart.items.filter((it) => it.productId).map((it) => ({ product: it.productId, quantity: it.quantity })) : [];
   return res.json({ cartCount: cartCount(items), items });
 };
 
@@ -58,7 +58,7 @@ export const removeFromCart = async (req, res) => {
   await cart.save();
 
   const populated = await Cart.findOne({ user: req.user._id }).populate("items.productId", "name price stock description imageUrl");
-  const items = populated ? populated.items.map((it) => ({ product: it.productId, quantity: it.quantity })) : [];
+  const items = populated ? populated.items.filter((it) => it.productId).map((it) => ({ product: it.productId, quantity: it.quantity })) : [];
 
   return res.json({ cartCount: cartCount(items), items });
 };
@@ -85,8 +85,7 @@ export const updateCartItemQuantity = async (req, res) => {
   await cart.save();
 
   const populated = await Cart.findOne({ user: req.user._id }).populate("items.productId", "name price stock description imageUrl");
-  const items = populated.items.map((it) => ({ product: it.productId, quantity: it.quantity }));
+  const items = populated.items.filter((it) => it.productId).map((it) => ({ product: it.productId, quantity: it.quantity }));
 
   return res.json({ cartCount: cartCount(items), items });
 };
-

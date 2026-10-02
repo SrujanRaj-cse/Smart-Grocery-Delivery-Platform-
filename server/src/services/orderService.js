@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
+import Cart from "../models/Cart.js";
 import {
   ORDER_STATUS,
   ROLES,
@@ -8,77 +9,87 @@ import {
 } from "../utils/constants.js";
 import { emitStockUpdated } from "../socket/socket.js";
 
-export const createOrderWithStockLock = async ({ customerId, items, address }) => {
+export const createOrderWithStockLock = async ({ customerId, address, deliveryLocation, checkoutKey }) => {
   const session = await mongoose.startSession();
+  let order;
+  let committedStockUpdates = [];
   try {
-    session.startTransaction();
-
-    const normalizedItems = [];
-    let totalAmount = 0;
-    const stockUpdates = [];
-
-    for (const item of items) {
-      const product = await Product.findOne({ _id: item.productId, isActive: true }).session(session);
-      if (!product) {
-        const err = new Error("Product not found");
-        err.statusCode = 400;
-        throw err;
-      }
-      if (product.stock < item.quantity) {
-        const err = new Error(`Insufficient stock for ${product.name}`);
-        err.statusCode = 400;
-        throw err;
+    await session.withTransaction(async () => {
+      committedStockUpdates = [];
+      if (checkoutKey) {
+        const existing = await Order.findOne({ customer: customerId, checkoutKey }).session(session);
+        if (existing) {
+          order = existing;
+          return;
+        }
       }
 
-      product.stock -= item.quantity;
-      await product.save({ session });
-      stockUpdates.push({ productId: product._id.toString(), newStock: product.stock });
+      const cart = await Cart.findOne({ user: customerId }).session(session);
+      if (!cart?.items?.length) {
+        const error = new Error("Cart is empty");
+        error.statusCode = 400;
+        throw error;
+      }
 
-      normalizedItems.push({
-        product: product._id,
-        name: product.name,
-        price: product.price,
-        quantity: item.quantity,
-      });
-      totalAmount += product.price * item.quantity;
-    }
+      const quantities = new Map();
+      for (const item of cart.items) {
+        const id = item.productId.toString();
+        quantities.set(id, (quantities.get(id) || 0) + item.quantity);
+      }
 
-    // Enforce order state machine: Created -> Confirmed
-    const [order] = await Order.create(
-      [
-        {
-          customer: customerId,
-          items: normalizedItems,
-          totalAmount,
-          address,
-          status: ORDER_STATUS.CREATED,
-        },
-      ],
-      { session }
-    );
+      const normalizedItems = [];
+      let totalAmount = 0;
+      for (const [productId, quantity] of quantities) {
+        const product = await Product.findOne({ _id: productId, isActive: true }).session(session);
+        if (!product) {
+          const error = new Error("One or more cart products are no longer available");
+          error.statusCode = 409;
+          throw error;
+        }
 
-    const allowed = VALID_ORDER_TRANSITIONS[order.status] || [];
-    if (!allowed.includes(ORDER_STATUS.CONFIRMED)) {
-      throw new Error(`Invalid transition ${order.status} -> ${ORDER_STATUS.CONFIRMED}`);
-    }
+        const update = await Product.updateOne(
+          { _id: product._id, isActive: true, stock: { $gte: quantity } },
+          { $inc: { stock: -quantity } },
+          { session }
+        );
+        if (update.modifiedCount !== 1) {
+          const error = new Error(`Insufficient stock for ${product.name}`);
+          error.statusCode = 409;
+          throw error;
+        }
 
-    order.status = ORDER_STATUS.CONFIRMED;
-    await order.save({ session });
+        const newStock = product.stock - quantity;
+        committedStockUpdates.push({ productId: product._id.toString(), newStock });
+        normalizedItems.push({ product: product._id, name: product.name, price: product.price, quantity });
+        totalAmount += product.price * quantity;
+      }
 
-    await session.commitTransaction();
+      const [created] = await Order.create([{
+        customer: customerId,
+        items: normalizedItems,
+        totalAmount,
+        address,
+        deliveryLocation,
+        checkoutKey,
+        status: ORDER_STATUS.CREATED,
+      }], { session });
 
-    // Emit after commit so all clients see the committed stock values.
-    // This runs for each product decremented by the order.
-    for (const upd of stockUpdates) {
-      emitStockUpdated(upd);
-    }
+      const allowed = VALID_ORDER_TRANSITIONS[created.status] || [];
+      if (!allowed.includes(ORDER_STATUS.CONFIRMED)) {
+        throw new Error(`Invalid transition ${created.status} -> ${ORDER_STATUS.CONFIRMED}`);
+      }
+      created.status = ORDER_STATUS.CONFIRMED;
+      await created.save({ session });
 
+      const cleared = await Cart.deleteOne({ _id: cart._id, user: customerId }, { session });
+      if (cleared.deletedCount !== 1) throw new Error("Cart changed during checkout; please retry");
+      order = created;
+    });
+
+    for (const update of committedStockUpdates) emitStockUpdated(update);
     return order;
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
   } finally {
-    session.endSession();
+    await session.endSession();
   }
 };
 

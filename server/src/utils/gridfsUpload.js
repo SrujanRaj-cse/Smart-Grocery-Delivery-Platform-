@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { GridFSBucket } from "mongodb";
+import { GridFSBucket, ObjectId } from "mongodb";
 
 const BUCKET_NAME = process.env.GRIDFS_BUCKET_NAME || "productImages";
 
@@ -28,3 +28,7 @@ export const uploadImageToGridFs = async ({ buffer, filename, contentType }) => 
   return { id: id.toString(), bucketName: BUCKET_NAME };
 };
 
+export const deleteImageFromGridFs = async (id) => {
+  const bucket = new GridFSBucket(mongoose.connection.db, { bucketName: BUCKET_NAME });
+  await bucket.delete(new ObjectId(id));
+};

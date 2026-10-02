@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useCart } from "../context/CartContext";
 import api from "../api/client";
+import { formatCurrency } from "../utils/currency";
 
 const CartPage = () => {
-  const { items, total, updateQty, removeFromCart, clearCart, loading } = useCart();
+  const { items, total, updateQty, removeFromCart, syncCart, loading } = useCart();
   const [address, setAddress] = useState("");
   const [placing, setPlacing] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [updating, setUpdating] = useState(null);
+  const [deliveryLocation, setDeliveryLocation] = useState(null);
+  const checkoutKey = useRef(null);
 
   const checkout = async () => {
     setErrorMsg("");
@@ -17,14 +20,17 @@ const CartPage = () => {
 
     setPlacing(true);
     try {
+      checkoutKey.current ||= crypto.randomUUID();
       await api.post("/orders", {
         address,
+        ...(deliveryLocation ? { deliveryLocation } : {}),
         items: items.map((item) => ({
           productId: item.product._id,
           quantity: item.quantity,
         })),
-      });
-      clearCart();
+      }, { headers: { "Idempotency-Key": checkoutKey.current } });
+      checkoutKey.current = null;
+      await syncCart();
       setAddress("");
       toast.success("Order placed");
     } catch (error) {
@@ -80,7 +86,7 @@ const CartPage = () => {
                   ) : null}
                   <div>
                     <p className="font-semibold">{item.product.name}</p>
-                    <p className="text-sm text-slate-600">${Number(item.product.price).toFixed(2)}</p>
+                    <p className="text-sm text-slate-600">{formatCurrency(item.product.price)}</p>
                     <p className="text-xs text-slate-500">Stock: {stock}</p>
                   </div>
                 </div>
@@ -120,7 +126,7 @@ const CartPage = () => {
                 </div>
 
                 <div className="flex items-center justify-between gap-3 md:flex-col md:items-end">
-                  <div className="text-sm font-semibold">${(Number(item.product.price) * item.quantity).toFixed(2)}</div>
+                  <div className="text-sm font-semibold">{formatCurrency(Number(item.product.price) * item.quantity)}</div>
                   <button
                     className="rounded-lg bg-red-600 px-3 py-2 text-sm text-white disabled:opacity-50"
                     disabled={isUpdating}
@@ -146,7 +152,7 @@ const CartPage = () => {
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm text-slate-600">Total</p>
-            <p className="text-2xl font-bold text-emerald-800">${Number(total).toFixed(2)}</p>
+            <p className="text-2xl font-bold text-emerald-800">{formatCurrency(total)}</p>
           </div>
           <div className="text-xs text-slate-500">Checkout creates an order and reduces stock.</div>
         </div>
@@ -159,6 +165,13 @@ const CartPage = () => {
             value={address}
             onChange={(e) => setAddress(e.target.value)}
           />
+          <button type="button" className="mt-2 rounded-lg border border-emerald-700 px-3 py-2 text-xs font-medium text-emerald-800" onClick={() => {
+            if (!navigator.geolocation) return toast.error("Location is not available in this browser");
+            navigator.geolocation.getCurrentPosition(({ coords }) => {
+              setDeliveryLocation({ latitude: coords.latitude, longitude: coords.longitude });
+              toast.success("Delivery location added for route planning");
+            }, () => toast.error("Location permission was not granted"), { timeout: 10000 });
+          }}>{deliveryLocation ? "Location saved for route planning" : "Add location pin (optional)"}</button>
         </div>
 
         <button

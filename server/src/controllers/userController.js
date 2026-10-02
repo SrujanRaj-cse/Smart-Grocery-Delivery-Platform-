@@ -10,6 +10,10 @@ export const updateUserRole = async (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
 
+  if (String(id) === String(req.user._id)) {
+    return res.status(409).json({ message: "Administrators cannot change their own role" });
+  }
+
   if (!Object.values(ROLES).includes(role)) {
     return res.status(400).json({ message: "Invalid role" });
   }
@@ -17,6 +21,9 @@ export const updateUserRole = async (req, res) => {
   const user = await User.findById(id);
   if (!user) {
     return res.status(404).json({ message: "User not found" });
+  }
+  if (user.role === ROLES.ADMIN && role !== ROLES.ADMIN && await User.countDocuments({ role: ROLES.ADMIN }) <= 1) {
+    return res.status(409).json({ message: "The final administrator cannot be demoted" });
   }
   user.role = role;
   await user.save();
